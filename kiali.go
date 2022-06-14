@@ -184,9 +184,10 @@ func validateConfig() error {
 	if strings.Contains(config.Get().Server.StaticContentRootDirectory, "..") {
 		return fmt.Errorf("server static content root directory must not contain '..': %v", config.Get().Server.StaticContentRootDirectory)
 	}
-	if _, err := os.Stat(config.Get().Server.StaticContentRootDirectory); os.IsNotExist(err) {
+
+	/*if _, err := os.Stat(config.Get().Server.StaticContentRootDirectory); os.IsNotExist(err) {
 		return fmt.Errorf("server static content root directory does not exist: %v", config.Get().Server.StaticContentRootDirectory)
-	}
+	}*/
 
 	validPathRegEx := regexp.MustCompile(`^\/[a-zA-Z0-9\-\._~!\$&\'()\*\+\,;=:@%/]*$`)
 	webRoot := config.Get().Server.WebRoot
