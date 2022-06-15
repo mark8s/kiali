@@ -4,6 +4,9 @@ package graph
 
 import (
 	"fmt"
+	"github.com/kiali/kiali/kubernetes"
+	v1 "k8s.io/api/core/v1"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	net_http "net/http"
 	"net/url"
 	"strconv"
@@ -82,6 +85,7 @@ type TelemetryOptions struct {
 
 // Options comprises all available options
 type Options struct {
+	Context         string
 	ConfigVendor    string
 	TelemetryVendor string
 	ConfigOptions
@@ -89,6 +93,7 @@ type Options struct {
 }
 
 func NewOptions(r *net_http.Request) Options {
+	// 1.解析参数
 	// path variables (0 or more will be set)
 	vars := mux.Vars(r)
 	app := vars["app"]
@@ -102,14 +107,19 @@ func NewOptions(r *net_http.Request) Options {
 	var duration model.Duration
 	var injectServiceNodes bool
 	var queryTime int64
+	// appenders 显示的图形内容的选项，如包含DeadNode，那么就代表使用了DeadNodeAppender，其用于将不想要 node 从 service graph 中删除。
+	// Appender由任何代码实现提供附加服务和补充信息图。
 	appenders := RequestedAppenders{All: true}
 	configVendor := params.Get("configVendor")
 	durationString := params.Get("duration")
+	// app、service、versionedApp、workload
 	graphType := params.Get("graphType")
 	groupBy := params.Get("groupBy")
+	// 是否显示service 节点
 	injectServiceNodesString := params.Get("injectServiceNodes")
 	namespaces := params.Get("namespaces") // csl of namespaces
 	queryTimeString := params.Get("queryTime")
+	// context := params.Get("context")
 	telemetryVendor := params.Get("telemetryVendor")
 
 	if _, ok := params["appenders"]; ok {
@@ -120,11 +130,14 @@ func NewOptions(r *net_http.Request) Options {
 		appenders = RequestedAppenders{All: false, AppenderNames: appenderNames}
 	}
 
+	// cytoscape：依据基本的数据的结合成可视化网络，简单的网络图包括节点（node）和边（edge）；节点与节点之间的连接 (edge) 代表着这些节点之间的相互作用
 	if configVendor == "" {
 		configVendor = defaultConfigVendor
 	} else if configVendor != VendorCytoscape {
 		BadRequest(fmt.Sprintf("Invalid configVendor [%s]", configVendor))
 	}
+
+	// 查询时间范围
 	if durationString == "" {
 		duration, _ = model.ParseDuration(defaultDuration)
 	} else {
@@ -157,6 +170,7 @@ func NewOptions(r *net_http.Request) Options {
 			BadRequest(fmt.Sprintf("Invalid injectServiceNodes [%s]", injectServiceNodesString))
 		}
 	}
+	// 查询的开始时间，查询以该时间为开始，duration多久后结束。也即： queryTime-duration . default now
 	if queryTimeString == "" {
 		queryTime = time.Now().Unix()
 	} else {
@@ -175,7 +189,7 @@ func NewOptions(r *net_http.Request) Options {
 	// Process namespaces options:
 	namespaceMap := NewNamespaceInfoMap()
 
-	tokenContext := r.Context().Value("token")
+	/*tokenContext := r.Context().Value("token")
 	var token string
 	if tokenContext != nil {
 		if tokenString, ok := tokenContext.(string); !ok {
@@ -186,12 +200,15 @@ func NewOptions(r *net_http.Request) Options {
 	} else {
 		Error("token missing in request context")
 	}
-
-	accessibleNamespaces := getAccessibleNamespaces(token)
+	*/
+	// accessibleNamespaces := getAccessibleNamespaces(token)
+	// kiali可访问的k8s命名空间，数据结构为map，key=namespaceName，value=namespace createTime。设置值为创建时间也是为了方便query
+	accessibleNamespaces := getAccessibleNamespacesNoToken()
 
 	// If path variable is set then it is the only relevant namespace (it's a node graph)
 	// Else if namespaces query param is set it specifies the relevant namespaces
 	// Else error, at least one namespace is required.
+	// 入参指定了namespace，那么只显示该namespace的数据
 	if namespace != "" {
 		namespaces = namespace
 	}
@@ -199,7 +216,8 @@ func NewOptions(r *net_http.Request) Options {
 	if namespaces == "" {
 		BadRequest(fmt.Sprintf("At least one namespace must be specified via the namespaces query parameter."))
 	}
-
+	// 设置查询graph的namespace是否是istio的namespace，以及查询时间是否是安全的
+	// namespaceToken=namespace的名称
 	for _, namespaceToken := range strings.Split(namespaces, ",") {
 		namespaceToken = strings.TrimSpace(namespaceToken)
 		if creationTime, found := accessibleNamespaces[namespaceToken]; found {
@@ -250,7 +268,6 @@ func NewOptions(r *net_http.Request) Options {
 			},
 		},
 	}
-
 	return options
 }
 
@@ -284,6 +301,44 @@ func getAccessibleNamespaces(token string) map[string]time.Time {
 	}
 
 	return namespaceMap
+}
+
+// getAccessibleNamespacesNoToken returns a Set of all namespaces accessible to the user.
+// The Set is implemented using the map convention. Each map entry is set to the
+// creation timestamp of the namespace, to be used to ensure valid time ranges for
+// queries against the namespace.
+func getAccessibleNamespacesNoToken() map[string]time.Time {
+	namespaceMap := make(map[string]time.Time)
+	clientSet, err := kubernetes.GetDefaultK8sClientSet()
+	if err != nil {
+		return namespaceMap
+	}
+	ops := v12.ListOptions{}
+	ns, err := clientSet.CoreV1().Namespaces().List(ops)
+	if err != nil {
+		return namespaceMap
+	}
+
+	for _, namespace := range ns.Items {
+		namespaceMap[namespace.Name] = namespace.CreationTimestamp.Time
+	}
+	return namespaceMap
+}
+
+const (
+	DefaultNamespace = "service-mesh"
+	KubeConfig       = "kubeConfig"
+	App              = "app"
+	Mesher           = "mesher"
+)
+
+func GetConfigMap(name string) (configMap *v1.ConfigMap, err error) {
+	ops := v12.GetOptions{}
+	clientSet, err := kubernetes.GetDefaultK8sClientSet()
+	if err != nil {
+		return nil, err
+	}
+	return clientSet.CoreV1().ConfigMaps(DefaultNamespace).Get(name, ops)
 }
 
 // getSafeNamespaceDuration returns a safe duration for the query. If queryTime-requestedDuration > namespace
