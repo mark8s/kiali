@@ -21,7 +21,7 @@ func GraphNamespaces(business *business.Layer, o graph.Options) (code int, confi
 
 	switch o.TelemetryVendor {
 	case graph.VendorIstio:
-		prom, err := prometheus.NewClient()
+		prom, err := prometheus.NewClientNoAuth()
 		graph.CheckError(err)
 		code, config = graphNamespacesIstio(business, prom, o)
 	default:
@@ -40,8 +40,9 @@ func graphNamespacesIstio(business *business.Layer, prom *prometheus.Client, o g
 	// Create a 'global' object to store the business. Global only to the request.
 	globalInfo := graph.NewAppenderGlobalInfo()
 	globalInfo.Business = business
-
+	// 关键~ 构建 namespace 的trafficMap
 	trafficMap := istio.BuildNamespacesTrafficMap(o.TelemetryOptions, prom, globalInfo)
+	// 生成Graph：转换为cytoscape类型json数据供前端Ui展示
 	code, config = generateGraph(trafficMap, o)
 
 	return code, config
@@ -93,6 +94,7 @@ func generateGraph(trafficMap graph.TrafficMap, o graph.Options) (int, interface
 	var vendorConfig interface{}
 	switch o.ConfigVendor {
 	case graph.VendorCytoscape:
+		// 生成cytoscape格式的json数据，供ui绘图
 		vendorConfig = cytoscape.NewConfig(trafficMap, o.ConfigOptions)
 	default:
 		graph.Error(fmt.Sprintf("ConfigVendor [%s] not supported", o.ConfigVendor))

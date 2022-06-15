@@ -7,6 +7,8 @@ import (
 
 const SidecarsCheckAppenderName = "sidecarsCheck"
 
+// 负责检查 workload 和 app 类型的node中是否missing sidecars，如果丢失sidecar，那么标记为`hasMissingSC`。
+
 // SidecarsCheckAppender flags nodes whose backing workloads are missing at least one Envoy sidecar. Note that
 // a node with no backing workloads is not flagged.
 // Name: sidecarsCheck

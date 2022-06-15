@@ -25,6 +25,8 @@ var (
 	regexpHTTPFailure, _ = regexp.Compile(`^[4|5]\d\d$`)
 )
 
+// 负责将responseTime信息添加到graph.
+
 // ResponseTimeAppender is responsible for adding responseTime information to the graph. ResponseTime
 // is represented as a percentile value. The default is 95th percentile, which means that
 // 95% of requests executed in no more than the resulting milliseconds. ResponeTime values are

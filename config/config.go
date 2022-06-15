@@ -287,7 +287,7 @@ type Config struct {
 // NewConfig creates a default Config struct
 func NewConfig() (c *Config) {
 	c = &Config{
-		InCluster:      true,
+		InCluster:      false,
 		IstioNamespace: "istio-system",
 		API: ApiConfig{
 			Namespaces: ApiNamespacesConfig{
@@ -301,7 +301,7 @@ func NewConfig() (c *Config) {
 			},
 		},
 		Auth: AuthConfig{
-			Strategy: "login",
+			Strategy: "anonymous",
 		},
 		Deployment: DeploymentConfig{
 			AccessibleNamespaces: []string{"**"},
@@ -335,17 +335,20 @@ func NewConfig() (c *Config) {
 				Auth: Auth{
 					Type: AuthTypeNone,
 				},
-				CustomMetricsURL: "http://prometheus.istio-system:9090",
-				URL:              "http://prometheus.istio-system:9090",
+				//CustomMetricsURL: "http://prometheus.istio-system:9090",
+				// URL:              "http://prometheus.istio-system:9090",
+				CustomMetricsURL: "http://10.10.13.48:30267",
+				URL:              "http://10.10.13.48:30267",
 			},
 			Tracing: TracingConfig{
 				Auth: Auth{
 					Type: AuthTypeNone,
 				},
-				Enabled:              true,
-				NamespaceSelector:    true,
-				InClusterURL:         "http://tracing.istio-system/jaeger",
-				URL:                  "",
+				Enabled:           true,
+				NamespaceSelector: true,
+				//InClusterURL:         "http://tracing.istio-system/jaeger",
+				InClusterURL:         "http://10.10.13.48:30641/jaeger",
+				URL:                  "http://10.10.13.48:30641/jaeger",
 				WhiteListIstioSystem: []string{"jaeger-query", "istio-ingressgateway"},
 			},
 		},
@@ -356,7 +359,7 @@ func NewConfig() (c *Config) {
 		KubernetesConfig: KubernetesConfig{
 			Burst:                       200,
 			CacheDuration:               5 * 60,
-			CacheEnabled:                true,
+			CacheEnabled:                false,
 			CacheIstioTypes:             []string{"DestinationRule", "Gateway", "ServiceEntry", "VirtualService"},
 			CacheNamespaces:             []string{".*"},
 			CacheTokenNamespaceDuration: 10,

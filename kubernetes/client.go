@@ -2,8 +2,11 @@ package kubernetes
 
 import (
 	"fmt"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 	"net"
 	"os"
+	"path/filepath"
 
 	osapps_v1 "github.com/openshift/api/apps/v1"
 	osproject_v1 "github.com/openshift/api/project/v1"
@@ -240,6 +243,55 @@ func ConfigClient() (*rest.Config, error) {
 	}, nil
 }
 
+// ConfigClient return a client with the correct configuration
+// Returns configuration if Kiali is in Cluster when InCluster is true
+// Returns configuration if Kiali is not int Cluster when InCluster is false
+// It returns an error on any problem
+func ConfigClientNoAuth() (*rest.Config, error) {
+	if kialiConfig.Get().InCluster {
+		incluster, err := rest.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+		incluster.QPS = kialiConfig.Get().KubernetesConfig.QPS
+		incluster.Burst = kialiConfig.Get().KubernetesConfig.Burst
+		return incluster, nil
+		host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
+		if len(host) == 0 || len(port) == 0 {
+			return nil, fmt.Errorf("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
+		}
+
+		return &rest.Config{
+			// TODO: switch to using cluster DNS.
+			Host:  "http://" + net.JoinHostPort(host, port),
+			QPS:   kialiConfig.Get().KubernetesConfig.QPS,
+			Burst: kialiConfig.Get().KubernetesConfig.Burst,
+		}, nil
+	}
+	return ConfigClientNoAuth2()
+}
+
+// ConfigClient return a client with the correct configuration
+// Returns configuration if Kiali is in Cluster when InCluster is true
+// Returns configuration if Kiali is not int Cluster when InCluster is false
+// It returns an error on any problem
+func ConfigClientNoAuth2() (*rest.Config, error) {
+	if os.Getenv("KUBERNETES_SERVICE_HOST") == "" {
+		kubeConfig := GetKubeConfig()
+		cfg, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
+		if err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	} else {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	}
+}
+
 // NewClientFromConfig creates a new client to the Kubernetes and Istio APIs.
 // It takes the assumption that Istio is deployed into the cluster.
 // It hides the access to Kubernetes/Openshift credentials.
@@ -396,4 +448,33 @@ func newClientForAPI(fromCfg *rest.Config, groupVersion schema.GroupVersion, sch
 		Burst:           fromCfg.Burst,
 	}
 	return rest.RESTClientFor(&cfg)
+}
+
+// GetDefaultK8sClientSet()
+func GetDefaultK8sClientSet() (clientSet *kube.Clientset, err error) {
+	var config *rest.Config
+	if os.Getenv("KUBERNETES_SERVICE_HOST") == "" {
+		kubeConfig := GetKubeConfig()
+		config, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
+		if err != nil {
+			return
+		}
+	} else {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return
+		}
+	}
+	clientSet, err = kube.NewForConfig(config)
+	return
+}
+
+// GetKubeConfig
+func GetKubeConfig() (kubeConfig string) {
+	if home := homedir.HomeDir(); home != "" {
+		kubeConfig = filepath.Join(home, ".kube", "config")
+	} else {
+		kubeConfig = os.Getenv("KUBECONFIG")
+	}
+	return
 }

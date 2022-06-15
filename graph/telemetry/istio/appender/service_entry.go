@@ -11,6 +11,8 @@ import (
 
 const ServiceEntryAppenderName = "serviceEntry"
 
+// 负责识别在istio中定义为serviceEntry的service nodes。
+
 // ServiceEntryAppender is responsible for identifying service nodes that are defined in Istio as
 // a serviceEntry. A single serviceEntry can define multiple hosts and as such multiple service nodes may
 // map to different hosts of a single serviceEntry. We'll call these "se-service" nodes.  The appender

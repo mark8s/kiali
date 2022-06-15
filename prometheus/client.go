@@ -10,7 +10,7 @@ import (
 	prom_v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 
-	"github.com/kiali/kiali/config"
+	config "github.com/kiali/kiali/config"
 	"github.com/kiali/kiali/kubernetes"
 	"github.com/kiali/kiali/log"
 	"github.com/kiali/kiali/util/httputil"
@@ -65,6 +65,19 @@ func NewClient() (*Client, error) {
 	}
 	clientConfig.RoundTripper = transportConfig
 
+	p8s, err := api.NewClient(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	client := Client{p8s: p8s, api: prom_v1.NewAPI(p8s)}
+	return &client, nil
+}
+
+// NewClient creates a new client to the Prometheus API.
+// It returns an error on any problem.
+func NewClientNoAuth() (*Client, error) {
+	url := config.Get().ExternalServices.Prometheus.URL
+	clientConfig := api.Config{Address: url}
 	p8s, err := api.NewClient(clientConfig)
 	if err != nil {
 		return nil, err

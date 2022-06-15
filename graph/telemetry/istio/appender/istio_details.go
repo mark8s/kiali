@@ -10,6 +10,8 @@ import (
 
 const IstioAppenderName = "istio"
 
+// 负责标记具有特殊Istio意义（CircuitBreaker、VirtualService，分别标记为HasCB、HasVS）的节点。
+
 // IstioAppender is responsible for badging nodes with special Istio significance:
 // - CircuitBreaker: n.Metadata[HasCB] = true
 // - VirtualService: n.Metadata[HasVS] = true

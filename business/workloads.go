@@ -43,6 +43,7 @@ func isWorkloadIncluded(workload string) bool {
 // GetWorkloadList is the API handler to fetch the list of workloads in a given namespace.
 func (in *WorkloadService) GetWorkloadList(namespace string) (models.WorkloadList, error) {
 	var err error
+	// 记录一个metric
 	promtimer := internalmetrics.GetGoFunctionMetric("business", "WorkloadService", "GetWorkloadList")
 	defer promtimer.ObserveNow(&err)
 

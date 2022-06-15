@@ -48,24 +48,32 @@ func setLabels() {
 
 // BuildNamespacesTrafficMap is required by the graph/TelemtryVendor interface
 func BuildNamespacesTrafficMap(o graph.TelemetryOptions, client *prometheus.Client, globalInfo *graph.AppenderGlobalInfo) graph.TrafficMap {
+	// graph.TelemetryOptions: 存储了accessibleNamespaces、appenders、namespaceMap等
 	log.Tracef("Build [%s] graph for [%v] namespaces [%s]", o.GraphType, len(o.Namespaces), o.Namespaces)
 
 	setLabels()
+	// 解析 appenders
 	appenders := appender.ParseAppenders(o)
 	trafficMap := graph.NewTrafficMap()
 
+	// 构建入参中的namespace的trafficMap
 	for _, namespace := range o.Namespaces {
 		log.Tracef("Build traffic map for namespace [%s]", namespace)
+		// 构建Namespace TrafficMap
 		namespaceTrafficMap := buildNamespaceTrafficMap(namespace.Name, o, client)
+		// namespaceInfo：namespace中workload的list
 		namespaceInfo := graph.NewAppenderNamespaceInfo(namespace.Name)
 		for _, a := range appenders {
 			appenderTimer := internalmetrics.GetGraphAppenderTimePrometheusTimer(a.Name())
+			// 追加Graph: 定制化一些配置，可以add/delete/alter node ，且标记了部分node(给node打上了isDead、HasVS等标记)，使得Ui可以特别的显示
 			a.AppendGraph(namespaceTrafficMap, globalInfo, namespaceInfo)
 			appenderTimer.ObserveDuration()
 		}
+		// 将Appender处理后的trafficMap合入trafficMap
 		telemetry.MergeTrafficMaps(trafficMap, namespace.Name, namespaceTrafficMap)
 	}
 
+	// 最后的调整
 	// The appenders can add/remove/alter nodes. After the manipulations are complete
 	// we can make some final adjustments:
 	// - mark the outsiders (i.e. nodes not in the requested namespaces)

@@ -58,6 +58,7 @@ func GetUnauthenticated() (*Layer, error) {
 // Get the business.Layer
 func Get(token string) (*Layer, error) {
 	// Kiali Cache will be initialized once at first use of Business layer
+	// 只执行一次 . 初始化kiali的缓存：缓存了k8s、istio资源和namespace等信息
 	once.Do(initKialiCache)
 
 	// Use an existing client factory if it exists, otherwise create and use in the future
@@ -87,6 +88,43 @@ func Get(token string) (*Layer, error) {
 	// Create Jaeger client
 	jaegerLoader := func() (jaeger.ClientInterface, error) {
 		return jaeger.NewClient(token)
+	}
+
+	return NewWithBackends(k8s, prometheusClient, jaegerLoader), nil
+}
+
+// Get the business.Layer NoAuth
+func GetNoAuth() (*Layer, error) {
+	// Kiali Cache will be initialized once at first use of Business layer
+	once.Do(initKialiCache)
+
+	// Use an existing client factory if it exists, otherwise create and use in the future
+	if clientFactory == nil {
+		userClient, err := kubernetes.GetClientFactoryNoAuth()
+		if err != nil {
+			return nil, err
+		}
+		clientFactory = userClient
+	}
+
+	// Creates a new k8s client based on the current users token
+	k8s, err := clientFactory.GetClientNoAuth()
+	if err != nil {
+		return nil, err
+	}
+
+	// Use an existing Prometheus client if it exists, otherwise create and use in the future
+	if prometheusClient == nil {
+		prom, err := prometheus.NewClientNoAuth()
+		if err != nil {
+			return nil, err
+		}
+		prometheusClient = prom
+	}
+
+	// Create Jaeger client
+	jaegerLoader := func() (jaeger.ClientInterface, error) {
+		return jaeger.NewClientNoAuth()
 	}
 
 	return NewWithBackends(k8s, prometheusClient, jaegerLoader), nil

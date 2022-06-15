@@ -43,11 +43,12 @@ import (
 func GraphNamespaces(w http.ResponseWriter, r *http.Request) {
 	defer handlePanic(w)
 
+	// 设置 绘图的选项：什么namespace的图、是否需要显示什么appenders等...
 	o := graph.NewOptions(r)
-
-	business, err := getBusiness(r)
+	// 设置k8s、p8s、jaeger client，以及初始化kiali缓存。而kiali缓存了k8s和istio的资源和namespace信息
+	business, err := getBusinessNoAuth()
 	graph.CheckError(err)
-
+	// 根据options生成namespace的graph
 	code, payload := api.GraphNamespaces(business, o)
 	respond(w, code, payload)
 }

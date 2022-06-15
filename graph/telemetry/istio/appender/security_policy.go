@@ -17,6 +17,8 @@ const (
 	policyMTLS                 = "mutual_tls"
 )
 
+// 负责将安全策略信息添加到graph，现在只支持tls。
+
 // SecurityPolicyAppender is responsible for adding securityPolicy information to the graph.
 // The appender currently reports only mutual_tls security although is written in a generic way.
 // Name: securityPolicy

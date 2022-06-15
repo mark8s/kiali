@@ -6,6 +6,12 @@ import (
 
 const DeadNodeAppenderName = "deadNode"
 
+// 负责删除多余的节点。他有两种情况:
+//- 没有traffic 报告的nodes和后台的workload不能被发现的nodes
+//- service node中没有service entries 的node、没有incoming错误traffic和没有outgoing edges的节点
+//
+//以上都会被认为是dead node，而从trafficMap中被删除。
+
 // DeadNodeAppender is responsible for removing from the graph unwanted nodes:
 // - nodes for which there is no traffic reported and a backing workload that can't be found
 //   (presumably removed from K8S). (kiali-621)
@@ -27,6 +33,8 @@ func (a DeadNodeAppender) AppendGraph(trafficMap graph.TrafficMap, globalInfo *g
 	}
 
 	if getWorkloadList(namespaceInfo) == nil {
+		// 获取指定namespace下的workload list
+		// workload: Pod、ReplicationController、Deployment、ReplicaSet、DeploymentConfig、StatefulSet、Job、CronJob
 		workloadList, err := globalInfo.Business.Workload.GetWorkloadList(namespaceInfo.Namespace)
 		graph.CheckError(err)
 		namespaceInfo.Vendor[workloadListKey] = &workloadList
