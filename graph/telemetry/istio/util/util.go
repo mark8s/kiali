@@ -34,9 +34,20 @@ func HandleDestination(sourceWlNs, sourceWl, destSvcNs, destSvc, destSvcName, de
 	return destSvcNs, destSvcName, destWlNs, destWl, destApp, destVer, false
 }
 
+// handleMultiClusterRequest 确保适当的目的地服务命名空间和名称请求转发来自另一个集群(通过ServiceEntry)。
 // handleMultiClusterRequest ensures the proper destination service namespace and name
 // for requests forwarded from another cluster (via a ServiceEntry).
-//
+
+// 给定一个请求从集群、集群B,集群A将生成source telemetry(从源工作负载到ServiceEntry)，集群B将生成destination telemetry(从unknown到目的地的工作负载)。
+// 如果是一个destination telemetry，destination_service_name的标签将会被设置成service entry的host，它需要具有 <name>.<namespace>.global 格式，其中 name 和 namespace 分别对应于远程服务的名称和命名空间。
+//在这种情况下我们改变请求有两种方式:
+// 首先，我们将 destSvcName 重置为 <name>，以便统一对服务的远程和本地请求。 通过这样做，graph将仅显示一个 <service> 节点，而不是 <service> 和 <name>.<namespace>.global 这两个节点在实践中是相同的。
+
+// 其次，我们将 destSvcNs 重置为 <namespace>。 我们希望将 destSvcNs 设置为远程服务命名空间的命名空间。 但在实践中，它将被设置为定义servieEntry 的命名空间（在clusterA 上）。 这对可视化没有用，所以我们在这里替换它。
+//请注意，<namespace> 应该等同于为destination_workload_namespace 设置的值，为了方便，我们只是使用<namespace>，我们在这里。
+
+// 所有这一切仅在源工作负载为“unknown”的情况下完成，这表明这表示 clusterB 上的destination telemetry，并且 destSvcName 为 MC 格式。 当源工作负载已知流量时，它应该代表集群流量到 ServiceEntry 并被路由出集群。 该用例在 service_entry.go 文件中处理。
+
 // Given a request from clusterA to clusterB, clusterA will generate source telemetry
 // (from the source workload to the service entry) and clusterB will generate destination
 // telemetry (from unknown to the destination workload). If this is the destination

@@ -33,6 +33,7 @@ func (in *HealthService) GetServiceHealth(namespace, service, rateInterval strin
 	return models.ServiceHealth{Requests: rqHealth}, err
 }
 
+// GetAppHealth 从namespace和name获取app的健康状态(从K8s和prometheus获取数据)
 // GetAppHealth returns an app health from just Namespace and app name (thus, it fetches data from K8S and Prometheus)
 func (in *HealthService) GetAppHealth(namespace, app, rateInterval string, queryTime time.Time) (models.AppHealth, error) {
 	var err error

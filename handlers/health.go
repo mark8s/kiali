@@ -70,6 +70,7 @@ func AppHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := appHealthParams{}
+	// 提取参数
 	p.extract(r)
 	rateInterval, err := adjustRateInterval(business, p.Namespace, p.RateInterval, p.QueryTime)
 	if err != nil {

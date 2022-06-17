@@ -108,6 +108,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	//    always provides the workload namespace, and because destination_service_namespace is provided from the source,
 	//    and for a request originating on a different cluster, will be set to the namespace where the service-entry is
 	//    defined, on the other cluster.
+	// 查询源流量来自unknown节点的。unknown来源于没有istio sidecar的，所以它是一个destination telemetry。为啥？？？
+	// 查询来源于unknown的traffic
 	groupBy := fmt.Sprintf("source_workload_namespace,source_workload,source_%s,source_%s,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_%s,destination_%s,request_protocol,response_code,grpc_response_status,response_flags", appLabel, verLabel, appLabel, verLabel)
 	query := fmt.Sprintf(`sum(rate(%s{reporter="destination",source_workload="unknown",destination_workload_namespace="%s"} [%vs])) by (%s)`,
 		requestsMetric,
@@ -119,6 +121,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 
 	// 2) query for external traffic, originating from a workload outside of the namespace.  Exclude any "unknown" source telemetry (an unusual corner
 	//	  case resulting from pod lifecycle changes).  Here use destination_service_workload to capture failed requests never reaching a dest workload.
+	// 查询source来自外部命名空间且不为unknown节点的traffic。而外部的定义为，当前请求参数中namespace的值以外的命名空间，如namespace=default，那么外部即为 !default，即source_workload_namespace!="default"。
+	// istio_requests_total{reporter="source",source_workload_namespace!="default",source_workload!="unknown",destination_service_namespace="default"}
 	reporter := "source"
 	sourceWorkloadNamespaceQuery := fmt.Sprintf(`source_workload_namespace!="%s"`, namespace)
 	if isIstioNamespace {
@@ -141,6 +145,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	populateTrafficMap(trafficMap, &extVector, o)
 
 	// 3) query for internal traffic, originating from a workload inside of the namespace
+	// 查询 source来自内部namespace的流量，也即内部流量
+	// istio_requests_total{reporter="source",source_workload_namespace="default"}
 	query = fmt.Sprintf(`sum(rate(%s{reporter="source",source_workload_namespace="%s"} [%vs])) by (%s)`,
 		requestsMetric,
 		namespace,
@@ -150,11 +156,15 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	populateTrafficMap(trafficMap, &intVector, o)
 
 	// Query3 misses istio-to-istio traffic, which is only reported destination-side, we must perform an additional query
+	// 缺少istio-to-istio的流量,只有destination-side报告,我们必须执行一个额外的查询
+	//
 	if isIstioNamespace {
 		// find traffic from the source istio namespace to any of the requested istio namespaces
+		// 查找istio-system命名空间中的流量
 		includedIstioRegex := strings.Join(o.Namespaces.GetIstioNamespaces(), "|")
 
 		// 3a) supplemental query for istio-to-istio traffic
+		// istio_requests_total{reporter="destination",source_workload_namespace="istio-system",destination_service_namespace=~"istio-system"}
 		query = fmt.Sprintf(`sum(rate(%s{reporter="destination",source_workload_namespace="%s",destination_service_namespace=~"%s"} [%vs])) by (%s)`,
 			requestsMetric,
 			namespace,
@@ -166,10 +176,13 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	}
 
 	// Section for TCP services (note, there is no TCP Istio traffic)
+	// TCP 服务（注意，没有TCP Istio流量）
 	tcpMetric := "istio_tcp_sent_bytes_total"
 
 	if !isIstioNamespace {
 		// 1) query for traffic originating from "unknown" (i.e. the internet)
+		// 查询来源于unknown节点的TCP流量
+		// rate(istio_tcp_sent_bytes_total{reporter="destination",source_workload="unknown",destination_workload_namespace="default"}
 		tcpGroupBy := fmt.Sprintf("source_workload_namespace,source_workload,source_%s,source_%s,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_%s,destination_%s,response_flags", appLabel, verLabel, appLabel, verLabel)
 		query = fmt.Sprintf(`sum(rate(%s{reporter="destination",source_workload="unknown",destination_workload_namespace="%s"} [%vs])) by (%s)`,
 			tcpMetric,
@@ -180,6 +193,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 		populateTrafficMapTCP(trafficMap, &tcpUnkVector, o)
 
 		// 2) query for traffic originating from a workload outside of the namespace. Exclude any "unknown" source telemetry (an unusual corner case)
+		// 查询来源与外部名称空间且非unknown节点的TCP流量
+		// istio_tcp_sent_bytes_total{reporter="source",source_workload_namespace!="default",source_workload!="unknown",destination_service_namespace="default"}
 		query = fmt.Sprintf(`sum(rate(%s{reporter="source",source_workload_namespace!="%s",source_workload!="unknown",destination_service_namespace="%s"} [%vs])) by (%s)`,
 			tcpMetric,
 			namespace,
@@ -190,6 +205,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 		populateTrafficMapTCP(trafficMap, &tcpExtVector, o)
 
 		// 3) query for traffic originating from a workload inside of the namespace
+		// 查询 source来自内部namespace的流量，也即内部流量
+		// istio_tcp_sent_bytes_total{reporter="source",source_workload_namespace="default"
 		query = fmt.Sprintf(`sum(rate(%s{reporter="source",source_workload_namespace="%s"} [%vs])) by (%s)`,
 			tcpMetric,
 			namespace,
@@ -270,6 +287,7 @@ func populateTrafficMap(trafficMap graph.TrafficMap, vector *model.Vector, o gra
 }
 
 func addTraffic(trafficMap graph.TrafficMap, val float64, protocol, code, flags, host, sourceNs, sourceSvc, sourceWl, sourceApp, sourceVer, destSvcNs, destSvcName, destWlNs, destWl, destApp, destVer string, o graph.TelemetryOptions) (source, dest *graph.Node) {
+	// 生成node
 	source, sourceFound := addNode(trafficMap, sourceNs, sourceSvc, sourceNs, sourceWl, sourceApp, sourceVer, o)
 	dest, destFound := addNode(trafficMap, destSvcNs, destSvcName, destWlNs, destWl, destApp, destVer, o)
 
@@ -283,6 +301,7 @@ func addTraffic(trafficMap graph.TrafficMap, val float64, protocol, code, flags,
 		}
 	}
 	if nil == edge {
+		// addEdge
 		edge = source.AddEdge(dest)
 		edge.Metadata[graph.ProtocolKey] = protocol
 	}
@@ -295,7 +314,6 @@ func addTraffic(trafficMap graph.TrafficMap, val float64, protocol, code, flags,
 	if destFound {
 		handleMisconfiguredLabels(dest, destApp, destVer, val, o)
 	}
-
 	graph.AddToMetadata(protocol, val, code, flags, host, source.Metadata, dest.Metadata, edge.Metadata)
 
 	return source, dest
@@ -436,6 +454,7 @@ func addNode(trafficMap graph.TrafficMap, serviceNs, service, workloadNs, worklo
 		if !graph.IsOK(namespace) {
 			namespace = serviceNs
 		}
+		// 生成node
 		newNode := graph.NewNodeExplicit(id, namespace, workload, app, version, service, nodeType, o.GraphType)
 		node = &newNode
 		trafficMap[id] = node

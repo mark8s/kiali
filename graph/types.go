@@ -155,6 +155,7 @@ func NewTrafficMap() TrafficMap {
 	return make(map[string]*Node)
 }
 
+// destSvcNs, destSvcName, destWlNs, destWl, destApp, destVer, o.GraphType
 func Id(serviceNamespace, service, workloadNamespace, workload, app, version, graphType string) (id, nodeType string) {
 	// prefer the workload namespace
 	namespace := workloadNamespace
