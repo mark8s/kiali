@@ -108,8 +108,11 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	//    always provides the workload namespace, and because destination_service_namespace is provided from the source,
 	//    and for a request originating on a different cluster, will be set to the namespace where the service-entry is
 	//    defined, on the other cluster.
-	// 查询源流量来自unknown节点的。unknown来源于没有istio sidecar的，所以它是一个destination telemetry。为啥？？？
+	// (1)查询源流量来自unknown节点的。
+	// unknown来源于没有istio sidecar的pod，它是一个destination telemetry。
+	// destination telemetry 会提供workload namespace，所以我们可以使用destination_workload_namespace这个标签，
 	// 查询来源于unknown的traffic
+	// istio_requests_total{reporter="destination",source_workload="unknown",destination_workload_namespace="default"}
 	groupBy := fmt.Sprintf("source_workload_namespace,source_workload,source_%s,source_%s,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_%s,destination_%s,request_protocol,response_code,grpc_response_status,response_flags", appLabel, verLabel, appLabel, verLabel)
 	query := fmt.Sprintf(`sum(rate(%s{reporter="destination",source_workload="unknown",destination_workload_namespace="%s"} [%vs])) by (%s)`,
 		requestsMetric,
@@ -121,10 +124,12 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 
 	// 2) query for external traffic, originating from a workload outside of the namespace.  Exclude any "unknown" source telemetry (an unusual corner
 	//	  case resulting from pod lifecycle changes).  Here use destination_service_workload to capture failed requests never reaching a dest workload.
-	// 查询source来自外部命名空间且不为unknown节点的traffic。而外部的定义为，当前请求参数中namespace的值以外的命名空间，如namespace=default，那么外部即为 !default，即source_workload_namespace!="default"。
+	// (2)查询来自外部命名空间且不为unknown节点的source telemetry。
+	// 外部的定义为，当前请求参数中namespace的值以外的命名空间，如namespace=default，那么外部即为 !default，即source_workload_namespace!="default"。
 	// istio_requests_total{reporter="source",source_workload_namespace!="default",source_workload!="unknown",destination_service_namespace="default"}
 	reporter := "source"
 	sourceWorkloadNamespaceQuery := fmt.Sprintf(`source_workload_namespace!="%s"`, namespace)
+	// 如果是istio-system, 那么就要排查istio的系统空间，而且reporter要改为destination,因为istio-system不会注入sidecar，所以都是destination telemetry
 	if isIstioNamespace {
 		// also exclude any non-requested istio namespaces
 		reporter = "destination"
@@ -145,7 +150,7 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	populateTrafficMap(trafficMap, &extVector, o)
 
 	// 3) query for internal traffic, originating from a workload inside of the namespace
-	// 查询 source来自内部namespace的流量，也即内部流量
+	// (3)查询 source来自内部namespace的流量，也即内部流量
 	// istio_requests_total{reporter="source",source_workload_namespace="default"}
 	query = fmt.Sprintf(`sum(rate(%s{reporter="source",source_workload_namespace="%s"} [%vs])) by (%s)`,
 		requestsMetric,
@@ -156,8 +161,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	populateTrafficMap(trafficMap, &intVector, o)
 
 	// Query3 misses istio-to-istio traffic, which is only reported destination-side, we must perform an additional query
-	// 缺少istio-to-istio的流量,只有destination-side报告,我们必须执行一个额外的查询
-	//
+	// (4)额外查询
+	// 缺少istio-to-istio的流量,我们必须执行一个额外的查询：istio-system发送到非istio系统namespace的流量
 	if isIstioNamespace {
 		// find traffic from the source istio namespace to any of the requested istio namespaces
 		// 查找istio-system命名空间中的流量
