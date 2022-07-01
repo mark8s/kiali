@@ -109,7 +109,7 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 	//    and for a request originating on a different cluster, will be set to the namespace where the service-entry is
 	//    defined, on the other cluster.
 	// (1)查询源流量来自unknown节点的。
-	// unknown来源于没有istio sidecar的pod，它是一个destination telemetry。
+	// unknown的source没有istio sidecar的pod，所以它是一个destination telemetry。这是因为它没有sidecar，自然就没有能力去收集metrics数据给prometheus，所以prometheus中如果有数据，那么必然是上报者为destination的，也即server端收集上报的。
 	// destination telemetry 会提供workload namespace，所以我们可以使用destination_workload_namespace这个标签，
 	// 查询来源于unknown的traffic
 	// istio_requests_total{reporter="destination",source_workload="unknown",destination_workload_namespace="default"}
@@ -139,6 +139,7 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 			sourceWorkloadNamespaceQuery = fmt.Sprintf(`source_workload_namespace!~"%s|%s"`, namespace, excludedIstioRegex)
 		}
 	}
+	// 如果是istio系统命名空间，istio_requests_total{reporter="destination",source_workload_namespace!~"istio-system|default",source_workload!="unknown",destination_service_namespace="default"}
 	query = fmt.Sprintf(`sum(rate(%s{reporter="%s",%s,source_workload!="unknown",destination_service_namespace="%s"} [%vs])) by (%s)`,
 		requestsMetric,
 		reporter,
@@ -162,7 +163,7 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 
 	// Query3 misses istio-to-istio traffic, which is only reported destination-side, we must perform an additional query
 	// (4)额外查询
-	// 缺少istio-to-istio的流量,我们必须执行一个额外的查询：istio-system发送到非istio系统namespace的流量
+	// 缺少istio-to-istio的流量,我们必须执行一个额外的查询：istio-system发送到istio-system的流量
 	if isIstioNamespace {
 		// find traffic from the source istio namespace to any of the requested istio namespaces
 		// 查找istio-system命名空间中的流量
