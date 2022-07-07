@@ -30,8 +30,11 @@ else
   if [ ! -d "$DIR/_output/docker/console" ]; then
     echo "Downloading console ($VERSION)..."
     mkdir $DIR/_output/docker/console || exit 1
-    curl -s $(npm view @kiali/kiali-ui@$VERSION dist.tarball) \
-        | tar zxf - --strip-components=2 --directory $DIR/_output/docker/console package/build || exit 1
+    #curl -s $(npm view @kiali/kiali-ui@$VERSION dist.tarball) \
+    #    | tar zxf - --strip-components=2 --directory $DIR/_output/docker/console package/build || exit 1
+
+    tar zxf kiali-ui-1.29.1.tgz --strip-components=2 --directory $DIR/_output/docker/console package/build || exit 1
+
     echo "$(npm view @kiali/kiali-ui@$VERSION version)" > \
         $DIR/_output/docker/console/version.txt || exit 1
   fi
