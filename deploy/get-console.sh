@@ -6,6 +6,7 @@
 #   $ make docker-build
 #
 # See the main Makefile for more info.
+set -x
 
 DIR=$(dirname $0)/..
 VERSION=${CONSOLE_VERSION:-latest}
