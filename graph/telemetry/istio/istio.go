@@ -68,6 +68,8 @@ func BuildNamespacesTrafficMap(o graph.TelemetryOptions, client *prometheus.Clie
 // buildNamespaceTrafficMap returns a map of all namespace nodes (key=id).  All
 // nodes either directly send and/or receive requests from a node in the namespace.
 func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client *prometheus.Client) graph.TrafficMap {
+
+	log.Infof("--------- test by Mark ---------")
 	// create map to aggregate traffic by protocol and response code
 	trafficMap := graph.NewTrafficMap()
 
