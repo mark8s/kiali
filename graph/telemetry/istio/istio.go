@@ -185,6 +185,8 @@ func buildNamespaceTrafficMap(namespace string, o graph.TelemetryOptions, client
 
 	groupBy = "source_cluster,source_workload_namespace,source_workload,source_canonical_service,source_canonical_revision,destination_cluster,destination_service_namespace,destination_service,destination_service_name,destination_workload_namespace,destination_workload,destination_canonical_service,destination_canonical_revision,response_flags"
 
+	log.Infof("create by mark~!!!!!!!!!!!")
+
 	// 0) Incoming: query source telemetry to capture unserviced namespace services' incoming traffic
 	query = fmt.Sprintf(`sum(rate(%s{reporter="source",source_workload_namespace!="%s",destination_workload_namespace="unknown",destination_workload="unknown",destination_service=~"^.+\\.%s\\..+$"} [%vs])) by (%s) %s`,
 		tcpMetric,
