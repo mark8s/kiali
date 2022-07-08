@@ -7,6 +7,8 @@
 #
 # See the main Makefile for more info.
 
+set -x
+
 DIR=$(dirname $0)/..
 VERSION=${CONSOLE_VERSION:-latest}
 CONSOLE_DIR=${CONSOLE_LOCAL_DIR:-$DIR/../../../../../kiali-ui}
@@ -30,7 +32,7 @@ else
   if [ ! -d "$DIR/_output/docker/console" ]; then
     echo "Downloading console ($VERSION)..."
     mkdir $DIR/_output/docker/console || exit 1
-    curl -s $(npm view @kiali/kiali-ui@$VERSION dist.tarball) \
+    curl -L  $(npm view @kiali/kiali-ui@$VERSION dist.tarball) \
         | tar zxf - --strip-components=2 --directory $DIR/_output/docker/console package/build || exit 1
     echo "$(npm view @kiali/kiali-ui@$VERSION version)" > \
         $DIR/_output/docker/console/version.txt || exit 1

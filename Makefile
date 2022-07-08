@@ -43,7 +43,7 @@ CONTAINER_VERSION ?= dev
 
 # These two vars allow Jenkins to override values.
 QUAY_NAME ?= quay.io/${CONTAINER_NAME}
-QUAY_TAG ?= ${QUAY_NAME}:${CONTAINER_VERSION}
+QUAY_TAG ?= leis17/kiali:v1.30
 
 # Identifies the Kiali operator container images that will be built
 OPERATOR_CONTAINER_NAME ?= ${IMAGE_ORG}/kiali-operator
